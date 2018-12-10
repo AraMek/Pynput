@@ -4,15 +4,19 @@
 from pynput import keyboard, mouse
 
 import socket
-import pickle 
+import pickle as pl
 import time
+import crc16
 
 import threading
 
 keys = []
 
+BASE_SPEED = 1000
+
+
 def SendMessage(msg):
-    client.sendto(str(msg).encode('utf-8'), (IP, PORT))
+    client.sendto(msg, (IP, PORT))
     
 def OnPress(key):
     global listener
@@ -37,7 +41,7 @@ def Listener():
 
 
 
-IP = '192.168.8.172' #айпи сервера
+IP = '192.168.8.163' #айпи сервера
 PORT = 8000 #порт сервера
 
 client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) #создаем udp клиент
@@ -45,21 +49,28 @@ client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) #создаем udp к
 keyListenerThread = threading.Thread(target = Listener)
 keyListenerThread.start()
 
+stateMove = [0, 0]
 running = True
 
-#direction = ''
-
-stateMove = [0,0]
+direction = ''
 
 while running:
     #print(keys)
     try:
-        stateMove = [-int("'a'" in keys) + int("'d'" in keys), \
+        stateMove = [-int("'d'" in keys) + int("'a'" in keys), \
                      -int("'s'"in keys) + int("'w'" in keys)]
         print(stateMove)
-        client.sendto(pickle.dumps(stateMove, protocol=3), (IP,PORT))
+
+        stateMoveBytes = pl.dumps((BASE_SPEED,stateMove), protocol = 3)
+
+        crc = crc16.crc16xmodem(stateMoveBytes)
+        crcBytes = crc.to_bytes(2, byteorder='big', signed = False)
+
+        data = stateMoveBytes + crcBytes
+        SendMessage(data)
         time.sleep(0.1)
     except KeyboardInterrupt:
-        print('Ctrl + C pressed!!!')
+        print('Ctrl + c pressed!!!')
         break
+
 
